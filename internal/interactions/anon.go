@@ -365,11 +365,13 @@ func (i *Interactions) AnonCommandInteraction(
 
 		return err
 	}
-	defer response.Body.Close()
+	defer func() {
+		_ = response.Body.Close()
+	}()
 
 	if response.StatusCode != http.StatusOK {
 		err := fmt.Errorf(
-			"Discord CDN returned status %d",
+			"discord CDN returned status %d",
 			response.StatusCode,
 		)
 		i.log.Error(
