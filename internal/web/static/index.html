@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark">
+
+    <title>GhostDrop — Setup</title>
+
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/script.js" defer></script>
+</head>
+<body>
+    <main class="page">
+        <div class="setup">
+            <header class="header">
+                <div class="logo">👻</div>
+
+                <div class="brand">
+                    <h1>GhostDrop</h1>
+                    <span>ANONYMOUS DISCORD DROPS</span>
+                </div>
+
+                <div class="version">SETUP</div>
+            </header>
+
+            <section class="card">
+                <div class="card-heading">
+                    <div class="step">01 / CONFIGURATION</div>
+
+                    <h2>Connect your bot</h2>
+
+                    <p>
+                        Enter your Discord bot credentials
+                        to get GhostDrop up and running.
+                    </p>
+                </div>
+
+                <form id="settings-form">
+                    <div class="field">
+                        <label for="token">
+                            Bot Token
+                            <span class="required">*</span>
+                        </label>
+
+                        <div class="input-group">
+                            <input
+                                id="token"
+                                name="token"
+                                type="password"
+                                placeholder="Paste your Discord bot token"
+                                autocomplete="off"
+                                spellcheck="false"
+                            >
+
+                            <button
+                                class="toggle-password"
+                                id="toggle-token"
+                                type="button"
+                                aria-label="Show token"
+                            >
+                                Show
+                            </button>
+                        </div>
+
+                        <span class="hint">
+                            Find this in the Discord Developer Portal
+                            under Bot → Token.
+                            Leave blank to keep your saved token.
+                        </span>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="field">
+                        <div class="field-heading">
+                            <label for="guild">
+                                Guild ID
+                            </label>
+
+                            <span class="optional">OPTIONAL</span>
+                        </div>
+
+                        <input
+                            id="guild"
+                            name="guild"
+                            type="text"
+                            placeholder="123456789012345678"
+                            inputmode="numeric"
+                            autocomplete="off"
+                            spellcheck="false"
+                        >
+
+                        <span class="hint">
+                            The Discord server where the command
+                            will be registered.
+                        </span>
+                    </div>
+
+                    <label class="switch-row">
+                        <span class="switch-content">
+                            <strong>Global commands</strong>
+
+                            <small>
+                                Make /anon available on every server
+                                where your bot is installed.
+                            </small>
+                        </span>
+
+                        <span class="switch">
+                            <input
+                                id="global"
+                                type="checkbox"
+                                checked
+                            >
+
+                            <span class="switch-slider"></span>
+                        </span>
+                    </label>
+
+                    <div
+                        id="status"
+                        class="status"
+                        role="status"
+                        aria-live="polite"
+                    ></div>
+
+                    <button
+                        id="submit-button"
+                        class="submit-button"
+                        type="submit"
+                    >
+                        <span id="button-text">
+                            Save & Start GhostDrop
+                        </span>
+
+                        <span class="arrow">→</span>
+                    </button>
+
+                    <button
+                        id="clear-button"
+                        class="clear-button"
+                        type="button"
+                    >
+                        Clear Configuration
+                    </button>
+                </form>
+            </section>
+
+            <footer class="footer">
+                <span>👻 GhostDrop</span>
+                <span>Local configuration panel</span>
+            </footer>
+        </div>
+    </main>
+</body>
+</html>
