@@ -104,13 +104,20 @@ func Run() {
 		}
 
 		logger.Info("Configuration not found, opening setup...")
-		if err := web.OpenBrowser(
-			"http://127.0.0.1:8080",
-			logger,
-		); err != nil {
-			logger.Warn(
-				"Failed to open browser",
-				zap.Error(err),
+		if os.Getenv("GHOSTDROP_DISABLE_BROWSER") != "true" {
+			if err := web.OpenBrowser(
+				"http://127.0.0.1:8080",
+				logger,
+			); err != nil {
+				logger.Warn(
+					"Failed to open browser",
+					zap.Error(err),
+				)
+			}
+		} else {
+			logger.Info(
+				"Browser opening disabled",
+				zap.String("url", "http://127.0.0.1:8080"),
 			)
 		}
 

@@ -10,7 +10,6 @@ A simple Discord bot for anonymously sharing images, GIFs, videos, and audio fil
 - Supports images, GIFs, videos, and audio.
 - Choose any text channel.
 - Simple web-based configuration.
-- Windows and Linux support.
 
 ## Installation
 
@@ -20,6 +19,25 @@ A simple Discord bot for anonymously sharing images, GIFs, videos, and audio fil
 4. Run `ghostdrop.exe` on Windows or `./ghostdrop` on Linux.
 5. Open `http://127.0.0.1:8080` and enter your bot token.
 6. Click **Save & Start GhostDrop**.
+
+## Docker
+
+**Build:**
+
+```bash
+sudo docker build -f docker/Dockerfile -t ghostdrop .
+```
+
+**Run:**
+
+```bash
+sudo docker run -d \
+  --name ghostdrop \
+  --restart unless-stopped \
+  -p 127.0.0.1:8080:8080 \
+  -v ghostdrop-data:/data \
+  ghostdrop
+```
 
 ## Usage
 
@@ -41,7 +59,7 @@ The bot sends the file without publicly revealing the sender.
 
 ## Configuration
 
-Settings are saved automatically in `config.yaml` next to the executable.
+Settings are saved automatically in `config.yaml` next to the executable, or in `/data/config.yaml` when using Docker.
 
 Leave Guild ID empty to enable global commands.
 

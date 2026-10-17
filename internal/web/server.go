@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -54,10 +55,15 @@ func NewHTTPServer(
 		}
 	})
 
+	webHost := os.Getenv("GHOSTDROP_WEB_HOST")
+	if webHost == "" {
+		webHost = "127.0.0.1"
+	}
+
 	handler.InitAPI(router)
 	return &HTTPServer{
 		router: router,
-		addr:   net.JoinHostPort("127.0.0.1", strconv.Itoa(port)),
+		addr:   net.JoinHostPort(webHost, strconv.Itoa(port)),
 		log:    log,
 	}
 }

@@ -1,0 +1,10 @@
+.git/
+.github/
+.env
+.env.*
+config.yaml
+config.yml
+ghostdrop-linux/
+ghostdrop-windows/
+dist/
+*.log
