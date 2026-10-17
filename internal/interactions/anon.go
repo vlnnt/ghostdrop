@@ -1,39 +1,91 @@
 package interactions
 
 import (
+	"bytes"
+	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"go.uber.org/zap"
 )
 
+const maxMediaSize int64 = 20 << 20
+
+var supportedMedia = map[string]string{
+	"image/png":  ".png",
+	"image/jpeg": ".jpg",
+	"image/gif":  ".gif",
+	"image/webp": ".webp",
+
+	"video/mp4":       ".mp4",
+	"video/webm":      ".webm",
+	"video/quicktime": ".mov",
+
+	"audio/mpeg":    ".mp3",
+	"audio/mpeg3":   ".mp3",
+	"audio/mp3":     ".mp3",
+	"audio/x-mpeg":  ".mp3",
+	"audio/x-mpeg3": ".mp3",
+	"audio/x-mp3":   ".mp3",
+	"audio/mp4":     ".m4a",
+	"audio/x-m4a":   ".m4a",
+	"audio/wav":     ".wav",
+	"audio/x-wav":   ".wav",
+	"audio/wave":    ".wav",
+	"audio/ogg":     ".ogg",
+	"audio/opus":    ".opus",
+	"audio/flac":    ".flac",
+	"audio/x-flac":  ".flac",
+}
+
 func (i *Interactions) AnonCommandInteraction(
 	session *discordgo.Session,
 	interaction *discordgo.InteractionCreate,
 ) error {
-	data := interaction.ApplicationCommandData()
 	i.log.Info(
 		"AnonCommandInteraction started",
 		zap.String("guild_id", interaction.GuildID),
 		zap.String("interaction_id", interaction.ID),
 	)
 
+	if err := session.InteractionRespond(
+		interaction.Interaction,
+		&discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Flags: discordgo.MessageFlagsEphemeral,
+			},
+		},
+	); err != nil {
+		i.log.Error(
+			"Failed to acknowledge anon command",
+			zap.Error(err),
+		)
+		return err
+	}
+
+	data := interaction.ApplicationCommandData()
 	mediaOption := data.GetOption("media")
 	if mediaOption == nil {
 		err := fmt.Errorf("media option is required")
-		i.log.Warn("Invalid anon command", zap.Error(err))
+		i.log.Warn("Media option is missing", zap.Error(err))
 
-		if respondErr := session.InteractionRespond(
+		content := "Media option is required."
+		_, editErr := session.InteractionResponseEdit(
 			interaction.Interaction,
-			&discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: err.Error(),
-					Flags:   discordgo.MessageFlagsEphemeral,
-				},
-			}); respondErr != nil {
-			i.log.Error("Failed to respond to interaction", zap.Error(respondErr))
+			&discordgo.WebhookEdit{
+				Content: &content,
+			},
+		)
+		if editErr != nil {
+			i.log.Error(
+				"Failed to update interaction response",
+				zap.Error(editErr),
+			)
 		}
 
 		return err
@@ -42,18 +94,20 @@ func (i *Interactions) AnonCommandInteraction(
 	channelOption := data.GetOption("channel")
 	if channelOption == nil {
 		err := fmt.Errorf("channel option is required")
-		i.log.Warn("Invalid anon command", zap.Error(err))
+		i.log.Warn("Channel option is missing", zap.Error(err))
 
-		if respondErr := session.InteractionRespond(
+		content := "Channel option is required."
+		_, editErr := session.InteractionResponseEdit(
 			interaction.Interaction,
-			&discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: err.Error(),
-					Flags:   discordgo.MessageFlagsEphemeral,
-				},
-			}); respondErr != nil {
-			i.log.Error("Failed to respond to interaction", zap.Error(respondErr))
+			&discordgo.WebhookEdit{
+				Content: &content,
+			},
+		)
+		if editErr != nil {
+			i.log.Error(
+				"Failed to update interaction response",
+				zap.Error(editErr),
+			)
 		}
 
 		return err
@@ -61,18 +115,20 @@ func (i *Interactions) AnonCommandInteraction(
 
 	if data.Resolved == nil {
 		err := fmt.Errorf("resolved data is empty")
-		i.log.Warn("Invalid anon command", zap.Error(err))
+		i.log.Warn("Resolved data is empty", zap.Error(err))
 
-		if respondErr := session.InteractionRespond(
+		content := "Resolved data is empty."
+		_, editErr := session.InteractionResponseEdit(
 			interaction.Interaction,
-			&discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: err.Error(),
-					Flags:   discordgo.MessageFlagsEphemeral,
-				},
-			}); respondErr != nil {
-			i.log.Error("Failed to respond to interaction", zap.Error(respondErr))
+			&discordgo.WebhookEdit{
+				Content: &content,
+			},
+		)
+		if editErr != nil {
+			i.log.Error(
+				"Failed to update interaction response",
+				zap.Error(editErr),
+			)
 		}
 
 		return err
@@ -81,18 +137,20 @@ func (i *Interactions) AnonCommandInteraction(
 	attachmentID, ok := mediaOption.Value.(string)
 	if !ok {
 		err := fmt.Errorf("invalid media attachment")
-		i.log.Warn("Invalid anon command", zap.Error(err))
+		i.log.Warn("Invalid media attachment", zap.Error(err))
 
-		if respondErr := session.InteractionRespond(
+		content := "Invalid media attachment."
+		_, editErr := session.InteractionResponseEdit(
 			interaction.Interaction,
-			&discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: err.Error(),
-					Flags:   discordgo.MessageFlagsEphemeral,
-				},
-			}); respondErr != nil {
-			i.log.Error("Failed to respond to interaction", zap.Error(respondErr))
+			&discordgo.WebhookEdit{
+				Content: &content,
+			},
+		)
+		if editErr != nil {
+			i.log.Error(
+				"Failed to update interaction response",
+				zap.Error(editErr),
+			)
 		}
 
 		return err
@@ -107,117 +165,125 @@ func (i *Interactions) AnonCommandInteraction(
 			zap.Error(err),
 		)
 
-		if respondErr := session.InteractionRespond(
+		content := "Attachment not found."
+		_, editErr := session.InteractionResponseEdit(
 			interaction.Interaction,
-			&discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: err.Error(),
-					Flags:   discordgo.MessageFlagsEphemeral,
-				},
-			}); respondErr != nil {
-			i.log.Error("Failed to respond to interaction", zap.Error(respondErr))
+			&discordgo.WebhookEdit{
+				Content: &content,
+			},
+		)
+		if editErr != nil {
+			i.log.Error(
+				"Failed to update interaction response",
+				zap.Error(editErr),
+			)
 		}
 
 		return err
 	}
 
-	if media.ContentType == "" || !strings.HasPrefix(media.ContentType, "image/") {
+	contentType := strings.ToLower(
+		strings.TrimSpace(strings.Split(media.ContentType, ";")[0]),
+	)
+
+	switch contentType {
+	case "audio/mpeg3",
+		"audio/mp3",
+		"audio/x-mpeg",
+		"audio/x-mpeg3",
+		"audio/x-mp3":
+		contentType = "audio/mpeg"
+	}
+
+	extension, supported := supportedMedia[contentType]
+	if !supported {
+		err := fmt.Errorf("unsupported media type: %s", contentType)
 		i.log.Warn(
 			"Unsupported media type",
-			zap.String("content_type", media.ContentType),
-			zap.String("attachment_id", attachmentID),
+			zap.String("content_type", contentType),
+			zap.Error(err),
 		)
 
-		if err := session.InteractionRespond(
+		content := "Only images, GIFs and videos are allowed."
+		_, editErr := session.InteractionResponseEdit(
 			interaction.Interaction,
-			&discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: "⚠️ only images are allowed.",
-					Flags:   discordgo.MessageFlagsEphemeral,
-				},
-			}); err != nil {
-			i.log.Error("Failed to respond to interaction", zap.Error(err))
-			return err
+			&discordgo.WebhookEdit{
+				Content: &content,
+			},
+		)
+		if editErr != nil {
+			i.log.Error(
+				"Failed to update interaction response",
+				zap.Error(editErr),
+			)
 		}
 
-		return nil
+		return err
+	}
+
+	if media.Size <= 0 || int64(media.Size) > maxMediaSize {
+		err := fmt.Errorf("invalid media size: %d", media.Size)
+		i.log.Warn(
+			"Invalid media size",
+			zap.Int("file_size", media.Size),
+			zap.Error(err),
+		)
+
+		content := "Media must be between 1 byte and 20 MiB."
+		_, editErr := session.InteractionResponseEdit(
+			interaction.Interaction,
+			&discordgo.WebhookEdit{
+				Content: &content,
+			},
+		)
+		if editErr != nil {
+			i.log.Error(
+				"Failed to update interaction response",
+				zap.Error(editErr),
+			)
+		}
+
+		return err
 	}
 
 	targetChannel := channelOption.ChannelValue(session)
 	if targetChannel == nil {
 		err := fmt.Errorf("target channel not found")
-		i.log.Warn("Invalid target channel", zap.Error(err))
+		i.log.Warn("Target channel not found", zap.Error(err))
 
-		if respondErr := session.InteractionRespond(
+		content := "Target channel not found."
+		_, editErr := session.InteractionResponseEdit(
 			interaction.Interaction,
-			&discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: err.Error(),
-					Flags:   discordgo.MessageFlagsEphemeral,
-				},
-			}); respondErr != nil {
-			i.log.Error("Failed to respond to interaction", zap.Error(respondErr))
+			&discordgo.WebhookEdit{
+				Content: &content,
+			},
+		)
+		if editErr != nil {
+			i.log.Error(
+				"Failed to update interaction response",
+				zap.Error(editErr),
+			)
 		}
 
 		return err
 	}
 
-	i.log.Info(
-		"Anon command validated",
-		zap.String("channel_id", targetChannel.ID),
-		zap.String("content_type", media.ContentType),
-		zap.Int("file_size", media.Size),
-	)
+	if targetChannel.Type != discordgo.ChannelTypeGuildText ||
+		targetChannel.GuildID != interaction.GuildID ||
+		interaction.GuildID == "" {
+		err := fmt.Errorf("invalid destination channel")
 
-	if err := session.InteractionRespond(
-		interaction.Interaction,
-		&discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "⏳ sending anonymously.",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		},
-	); err != nil {
-		i.log.Error(
-			"Failed to acknowledge anon command",
-			zap.Error(err),
-		)
-		return err
-	}
-
-	embed := &discordgo.MessageEmbed{
-		Title: "👻 Anonymous Drop",
-		Image: &discordgo.MessageEmbedImage{
-			URL: media.URL,
-		},
-	}
-
-	message, err := session.ChannelMessageSendComplex(
-		targetChannel.ID,
-		&discordgo.MessageSend{
-			Embeds: []*discordgo.MessageEmbed{embed},
-			AllowedMentions: &discordgo.MessageAllowedMentions{
-				Parse: []discordgo.AllowedMentionType{},
-			},
-		},
-	)
-
-	if err != nil {
-		i.log.Error(
-			"Failed to send anonymous image",
+		i.log.Warn(
+			"Invalid destination channel",
 			zap.String("channel_id", targetChannel.ID),
 			zap.Error(err),
 		)
 
-		contentSendError := "❌ failed to send image!"
+		content := "Select a text channel from this server."
 		_, editErr := session.InteractionResponseEdit(
 			interaction.Interaction,
 			&discordgo.WebhookEdit{
-				Content: &contentSendError,
+				Content: &content,
 			},
 		)
 		if editErr != nil {
@@ -231,12 +297,231 @@ func (i *Interactions) AnonCommandInteraction(
 	}
 
 	i.log.Info(
-		"Anonymous image sent successfully",
+		"Anon command validated",
 		zap.String("channel_id", targetChannel.ID),
-		zap.String("message_id", message.ID),
+		zap.String("content_type", contentType),
+		zap.Int("file_size", media.Size),
 	)
 
-	content := "✅ sent anonymously!"
+	client := &http.Client{
+		Timeout: 60 * time.Second,
+		CheckRedirect: func(
+			req *http.Request,
+			via []*http.Request,
+		) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	request, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		media.URL,
+		nil,
+	)
+	if err != nil {
+		i.log.Error(
+			"Failed to prepare media download",
+			zap.Error(err),
+		)
+
+		content := "Failed to prepare media download."
+		_, editErr := session.InteractionResponseEdit(
+			interaction.Interaction,
+			&discordgo.WebhookEdit{
+				Content: &content,
+			},
+		)
+		if editErr != nil {
+			i.log.Error(
+				"Failed to update interaction response",
+				zap.Error(editErr),
+			)
+		}
+
+		return err
+	}
+
+	response, err := client.Do(request)
+	if err != nil {
+		i.log.Error(
+			"Failed to download media",
+			zap.Error(err),
+		)
+
+		content := "Failed to download media."
+		_, editErr := session.InteractionResponseEdit(
+			interaction.Interaction,
+			&discordgo.WebhookEdit{
+				Content: &content,
+			},
+		)
+		if editErr != nil {
+			i.log.Error(
+				"Failed to update interaction response",
+				zap.Error(editErr),
+			)
+		}
+
+		return err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		err := fmt.Errorf(
+			"Discord CDN returned status %d",
+			response.StatusCode,
+		)
+		i.log.Error(
+			"Media download returned unexpected status",
+			zap.Int("status_code", response.StatusCode),
+			zap.Error(err),
+		)
+
+		content := "Failed to download media."
+		_, editErr := session.InteractionResponseEdit(
+			interaction.Interaction,
+			&discordgo.WebhookEdit{
+				Content: &content,
+			},
+		)
+		if editErr != nil {
+			i.log.Error(
+				"Failed to update interaction response",
+				zap.Error(editErr),
+			)
+		}
+
+		return err
+	}
+
+	mediaBytes, err := io.ReadAll(
+		io.LimitReader(response.Body, maxMediaSize+1),
+	)
+	if err != nil {
+		i.log.Error(
+			"Failed to read media",
+			zap.Error(err),
+		)
+
+		content := "Failed to read media."
+		_, editErr := session.InteractionResponseEdit(
+			interaction.Interaction,
+			&discordgo.WebhookEdit{
+				Content: &content,
+			},
+		)
+		if editErr != nil {
+			i.log.Error(
+				"Failed to update interaction response",
+				zap.Error(editErr),
+			)
+		}
+
+		return err
+	}
+
+	if int64(len(mediaBytes)) > maxMediaSize {
+		err := fmt.Errorf("downloaded media exceeds 20 MiB")
+
+		i.log.Warn(
+			"Downloaded media exceeds size limit",
+			zap.Int("downloaded_bytes", len(mediaBytes)),
+			zap.Error(err),
+		)
+
+		content := "Media exceeds the 20 MiB limit."
+		_, editErr := session.InteractionResponseEdit(
+			interaction.Interaction,
+			&discordgo.WebhookEdit{
+				Content: &content,
+			},
+		)
+		if editErr != nil {
+			i.log.Error(
+				"Failed to update interaction response",
+				zap.Error(editErr),
+			)
+		}
+
+		return err
+	}
+
+	if len(mediaBytes) == 0 {
+		err := fmt.Errorf("media file is empty")
+		i.log.Warn("Media file is empty", zap.Error(err))
+
+		content := "Media file is empty."
+		_, editErr := session.InteractionResponseEdit(
+			interaction.Interaction,
+			&discordgo.WebhookEdit{
+				Content: &content,
+			},
+		)
+		if editErr != nil {
+			i.log.Error(
+				"Failed to update interaction response",
+				zap.Error(editErr),
+			)
+		}
+
+		return err
+	}
+
+	i.log.Info(
+		"Anonymous media downloaded",
+		zap.Int("downloaded_bytes", len(mediaBytes)),
+		zap.String("content_type", contentType),
+	)
+
+	filename := "ghostdrop" + extension
+	message, err := session.ChannelMessageSendComplex(
+		targetChannel.ID,
+		&discordgo.MessageSend{
+			Files: []*discordgo.File{
+				{
+					Name:        filename,
+					ContentType: contentType,
+					Reader:      bytes.NewReader(mediaBytes),
+				},
+			},
+			AllowedMentions: &discordgo.MessageAllowedMentions{
+				Parse: []discordgo.AllowedMentionType{},
+			},
+		},
+	)
+	if err != nil {
+		i.log.Error(
+			"Failed to send anonymous media",
+			zap.String("channel_id", targetChannel.ID),
+			zap.Error(err),
+		)
+
+		content := "Failed to send media."
+		_, editErr := session.InteractionResponseEdit(
+			interaction.Interaction,
+			&discordgo.WebhookEdit{
+				Content: &content,
+			},
+		)
+		if editErr != nil {
+			i.log.Error(
+				"Failed to update interaction response",
+				zap.Error(editErr),
+			)
+		}
+
+		return err
+	}
+
+	i.log.Info(
+		"Anonymous media sent successfully",
+		zap.String("channel_id", targetChannel.ID),
+		zap.String("message_id", message.ID),
+		zap.String("content_type", contentType),
+	)
+
+	content := "Sent anonymously!"
 	_, err = session.InteractionResponseEdit(
 		interaction.Interaction,
 		&discordgo.WebhookEdit{
@@ -246,7 +531,6 @@ func (i *Interactions) AnonCommandInteraction(
 	if err != nil {
 		i.log.Error(
 			"Failed to update interaction response",
-			zap.String("channel_id", targetChannel.ID),
 			zap.Error(err),
 		)
 		return err

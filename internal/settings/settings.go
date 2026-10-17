@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"go.yaml.in/yaml/v2"
 )
@@ -23,10 +25,24 @@ func ReadEnvironmentVariable(
 ) (string, error) {
 	envValue := os.Getenv(value)
 	if len(envValue) == 0 {
-		return "", errors.New("environment variable " + value + " doesn't exist")
+		return "", errors.New(
+			"environment variable " + value + " doesn't exist",
+		)
 	}
 
 	return envValue, nil
+}
+
+func GetDefaultConfigPath() (string, error) {
+	executable, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(
+		filepath.Dir(executable),
+		"config.yaml",
+	), nil
 }
 
 func LoadConfig(
@@ -38,7 +54,21 @@ func LoadConfig(
 	}
 
 	settings := &BotSettings{}
-	err = yaml.Unmarshal(configBytes, settings)
+	if err := yaml.Unmarshal(configBytes, settings); err != nil {
+		return nil, err
+	}
+
+	if strings.TrimSpace(settings.Discord.Token) == "" {
+		return nil, errors.New("discord token is empty")
+	}
+
+	return settings, nil
+}
+
+func LoadEnvironmentConfig(
+	path string,
+) (*BotSettings, error) {
+	settings, err := LoadConfig(path)
 	if err != nil {
 		return nil, err
 	}
@@ -48,31 +78,59 @@ func LoadConfig(
 		return nil, err
 	}
 
-	settings.Discord.GuildID, err = ReadEnvironmentVariable(settings.Discord.GuildID)
-	if err != nil {
-		return nil, err
+	if settings.Discord.GuildID != "" {
+		settings.Discord.GuildID, err = ReadEnvironmentVariable(settings.Discord.GuildID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return settings, nil
 }
 
+func SaveConfig(
+	settings *BotSettings,
+	path string,
+) error {
+	if settings == nil {
+		return errors.New("settings are nil")
+	}
+
+	if strings.TrimSpace(settings.Discord.Token) == "" {
+		return errors.New("discord token is empty")
+	}
+
+	configBytes, err := yaml.Marshal(settings)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(path, configBytes, 0600)
+}
+
 func GetConfigPathFromArgs() string {
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s <path_to_config_file>\n", os.Args[0])
+		fmt.Fprintf(
+			os.Stderr,
+			"Usage: %s [path_to_config_file]\n",
+			os.Args[0],
+		)
 		flag.PrintDefaults()
 	}
 
-	var configPath string
 	flag.Parse()
-	if configPath = flag.Arg(0); configPath == "" {
-		flag.Usage()
-		os.Exit(1)
+	if path := flag.Arg(0); path != "" {
+		return path
 	}
 
-	return configPath
+	path, err := GetDefaultConfigPath()
+	if err != nil {
+		return "config.yaml"
+	}
+
+	return path
 }
 
 func Get() *BotSettings {
-	s := &BotSettings{}
-	return s
+	return &BotSettings{}
 }
