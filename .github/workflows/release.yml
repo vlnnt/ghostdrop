@@ -59,8 +59,7 @@ jobs:
 
       - name: Package
         run: |
-          tar -czf ghostdrop-linux-amd64.tar.gz \
-            -C ghostdrop-linux .
+          tar -czf ghostdrop-linux-amd64.tar.gz -C ghostdrop-linux .
 
       - name: Upload Linux build
         uses: actions/upload-artifact@v7
@@ -68,8 +67,6 @@ jobs:
           name: release-linux
           path: ghostdrop-linux-amd64.tar.gz
           retention-days: 1
-          if-no-files-found: error
-          archive: false
 
   build-windows:
     name: Build Windows
@@ -104,8 +101,6 @@ jobs:
           name: release-windows
           path: ghostdrop-windows-amd64.zip
           retention-days: 1
-          if-no-files-found: error
-          archive: false
 
   publish:
     name: Publish Release
@@ -155,7 +150,6 @@ jobs:
           PREVIOUS_TAG="$(
             git describe \
               --tags \
-              --match '[0-9]*.[0-9]*.[0-9]*' \
               --abbrev=0 \
               "${CURRENT_TAG}^" \
               2>/dev/null || true
@@ -179,7 +173,7 @@ jobs:
               dist/ghostdrop-linux-amd64.tar.gz \
               dist/ghostdrop-windows-amd64.zip \
               --verify-tag \
-              --title "GhostDrop $TAG" \
+              --title "$TAG" \
               --generate-notes \
               --notes-start-tag "$PREVIOUS_TAG"
           else
@@ -187,6 +181,6 @@ jobs:
               dist/ghostdrop-linux-amd64.tar.gz \
               dist/ghostdrop-windows-amd64.zip \
               --verify-tag \
-              --title "GhostDrop $TAG" \
+              --title "$TAG" \
               --generate-notes
           fi
