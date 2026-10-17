@@ -14,7 +14,9 @@ import (
 
 func Run() {
 	logger, _ := zap.NewProduction()
-	defer logger.Sync()
+	defer func() {
+		_ = logger.Sync()
+	}()
 
 	logger.Info("Initializing config...")
 	config, err := settings.LoadConfig(settings.GetConfigPathFromArgs())
@@ -59,10 +61,17 @@ func Run() {
 	logger.Info("Initializing discord add handler OK!")
 
 	logger.Info("Initializing register command...")
-	handler.RegisterCommand(session, config.Discord.GuildID)
+	if err := handler.RegisterCommand(
+		session,
+		config.Discord.GuildID,
+	); err != nil {
+		logger.Error(err.Error())
+	}
 
 	logger.Info("Initializing register command OK!")
-	defer handler.UnregisterCommand(session, config.Discord.GuildID)
+	defer func() {
+		_ = handler.UnregisterCommand(session, config.Discord.GuildID)
+	}()
 
 	logger.Info("Bot started!")
 
