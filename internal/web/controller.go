@@ -2,6 +2,7 @@ package web
 
 import (
 	"embed"
+	"ghostdrop/internal/settings"
 	"io/fs"
 	"net/http"
 
@@ -12,7 +13,11 @@ import (
 //go:embed static
 var staticFiles embed.FS
 
-type SettingsSaver func(token, guildID string) error
+type SettingsSaver func(
+	token string,
+	guildID string,
+	channel settings.ChannelSettings,
+) error
 
 type Handler struct {
 	log          *zap.Logger

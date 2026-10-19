@@ -118,6 +118,54 @@
                         </span>
                     </label>
 
+                    <div class="divider"></div>
+                    <label class="switch-row">
+                        <span class="switch-content">
+                            <strong>Bind destination channel</strong>
+
+                            <small>
+                                Always send anonymous media to a fixed
+                                channel, ignoring the channel selected
+                                in /anon.
+                            </small>
+                        </span>
+
+                        <span class="switch">
+                            <input
+                                id="channel-enabled"
+                                type="checkbox"
+                            >
+
+                            <span class="switch-slider"></span>
+                        </span>
+                    </label>
+
+                    <div class="field">
+                        <div class="field-heading">
+                            <label for="channel-id">
+                                Channel ID
+                            </label>
+
+                            <span class="optional">OPTIONAL</span>
+                        </div>
+
+                        <input
+                            id="channel-id"
+                            name="channel-id"
+                            type="text"
+                            placeholder="123456789012345678"
+                            inputmode="numeric"
+                            autocomplete="off"
+                            spellcheck="false"
+                            disabled
+                        >
+
+                        <span class="hint">
+                            Enter the Discord text channel ID.
+                            Required when channel binding is enabled.
+                        </span>
+                    </div>
+
                     <div
                         id="status"
                         class="status"

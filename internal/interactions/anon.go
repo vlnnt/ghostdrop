@@ -92,7 +92,7 @@ func (i *Interactions) AnonCommandInteraction(
 	}
 
 	channelOption := data.GetOption("channel")
-	if channelOption == nil {
+	if channelOption == nil && !i.channelSettings.Enabled {
 		err := fmt.Errorf("channel option is required")
 		i.log.Warn("Channel option is missing", zap.Error(err))
 
@@ -204,7 +204,7 @@ func (i *Interactions) AnonCommandInteraction(
 			zap.Error(err),
 		)
 
-		content := "Only images, GIFs and videos are allowed."
+		content := "Only supported images, GIFs, videos and audio files are allowed."
 		_, editErr := session.InteractionResponseEdit(
 			interaction.Interaction,
 			&discordgo.WebhookEdit{
@@ -246,12 +246,95 @@ func (i *Interactions) AnonCommandInteraction(
 		return err
 	}
 
-	targetChannel := channelOption.ChannelValue(session)
+	var channelID string
+	if i.channelSettings.Enabled {
+		channelID = strings.TrimSpace(i.channelSettings.Channel)
+		if channelID == "" {
+			err := fmt.Errorf("bound channel ID is empty")
+			i.log.Error(
+				"Channel binding is enabled without a channel ID",
+				zap.Error(err),
+			)
+
+			content := "Bound channel is not configured."
+			_, editErr := session.InteractionResponseEdit(
+				interaction.Interaction,
+				&discordgo.WebhookEdit{
+					Content: &content,
+				},
+			)
+			if editErr != nil {
+				i.log.Error(
+					"Failed to update interaction response",
+					zap.Error(editErr),
+				)
+			}
+
+			return err
+		}
+	} else {
+		var ok bool
+		channelID, ok = channelOption.Value.(string)
+		if !ok || strings.TrimSpace(channelID) == "" {
+			err := fmt.Errorf("invalid channel option")
+			i.log.Warn(
+				"Invalid channel option",
+				zap.Error(err),
+			)
+
+			content := "Invalid destination channel."
+			_, editErr := session.InteractionResponseEdit(
+				interaction.Interaction,
+				&discordgo.WebhookEdit{
+					Content: &content,
+				},
+			)
+			if editErr != nil {
+				i.log.Error(
+					"Failed to update interaction response",
+					zap.Error(editErr),
+				)
+			}
+
+			return err
+		}
+	}
+
+	targetChannel, err := session.Channel(channelID)
+	if err != nil {
+		i.log.Error(
+			"Failed to fetch destination channel",
+			zap.String("channel_id", channelID),
+			zap.Bool("channel_binding", i.channelSettings.Enabled),
+			zap.Error(err),
+		)
+
+		content := "Failed to access destination channel. Check bot permissions."
+		_, editErr := session.InteractionResponseEdit(
+			interaction.Interaction,
+			&discordgo.WebhookEdit{
+				Content: &content,
+			},
+		)
+		if editErr != nil {
+			i.log.Error(
+				"Failed to update interaction response",
+				zap.Error(editErr),
+			)
+		}
+
+		return err
+	}
+
 	if targetChannel == nil {
 		err := fmt.Errorf("target channel not found")
-		i.log.Warn("Target channel not found", zap.Error(err))
+		i.log.Warn(
+			"Target channel not found",
+			zap.String("channel_id", channelID),
+			zap.Error(err),
+		)
 
-		content := "Target channel not found."
+		content := "Destination channel not found."
 		_, editErr := session.InteractionResponseEdit(
 			interaction.Interaction,
 			&discordgo.WebhookEdit{
@@ -272,14 +355,23 @@ func (i *Interactions) AnonCommandInteraction(
 		targetChannel.GuildID != interaction.GuildID ||
 		interaction.GuildID == "" {
 		err := fmt.Errorf("invalid destination channel")
-
 		i.log.Warn(
 			"Invalid destination channel",
 			zap.String("channel_id", targetChannel.ID),
+			zap.Int("channel_type", int(targetChannel.Type)),
+			zap.String("channel_guild_id", targetChannel.GuildID),
+			zap.String("interaction_guild_id", interaction.GuildID),
+			zap.Bool("channel_binding", i.channelSettings.Enabled),
 			zap.Error(err),
 		)
 
 		content := "Select a text channel from this server."
+		if interaction.GuildID == "" {
+			content = "Use /anon in a server."
+		} else if i.channelSettings.Enabled {
+			content = "Configured channel must be a text channel on this server."
+		}
+
 		_, editErr := session.InteractionResponseEdit(
 			interaction.Interaction,
 			&discordgo.WebhookEdit{
@@ -294,6 +386,13 @@ func (i *Interactions) AnonCommandInteraction(
 		}
 
 		return err
+	}
+
+	if i.channelSettings.Enabled {
+		i.log.Info(
+			"Using bound channel",
+			zap.String("channel_id", targetChannel.ID),
+		)
 	}
 
 	i.log.Info(

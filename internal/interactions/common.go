@@ -1,15 +1,22 @@
 package interactions
 
-import "go.uber.org/zap"
+import (
+	"ghostdrop/internal/settings"
+
+	"go.uber.org/zap"
+)
 
 type Interactions struct {
-	log *zap.Logger
+	log             *zap.Logger
+	channelSettings settings.ChannelSettings
 }
 
 func NewInteractions(
 	log *zap.Logger,
+	channelSettings settings.ChannelSettings,
 ) *Interactions {
 	return &Interactions{
-		log: log,
+		log:             log,
+		channelSettings: channelSettings,
 	}
 }

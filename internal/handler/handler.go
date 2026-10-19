@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"errors"
+	"fmt"
 	"ghostdrop/internal/interactions"
 
 	"github.com/bwmarrin/discordgo"
@@ -46,24 +48,95 @@ func (h *handler) RegisterCommand(
 	session *discordgo.Session,
 	guildID string,
 ) error {
-	h.log.Info("RegisterCommand")
-	cmd, err := session.ApplicationCommandBulkOverwrite(
-		session.State.User.ID,
+	if session.State == nil || session.State.User == nil {
+		return errors.New("discord session is not ready")
+	}
+
+	appID := session.State.User.ID
+	h.log.Info(
+		"Registering Discord commands",
+		zap.String("guild_id", guildID),
+		zap.Bool("global_commands", guildID == ""),
+	)
+
+	registered, err := session.ApplicationCommandBulkOverwrite(
+		appID,
 		guildID,
 		commands,
 	)
 	if err != nil {
-		h.log.Error("Failed to register commands", zap.Error(err))
+		h.log.Error(
+			"Failed to register commands",
+			zap.Error(err),
+		)
 		return err
 	}
 
-	for _, command := range cmd {
+	for _, command := range registered {
 		h.log.Info(
 			"Registered Command",
 			zap.String("command", command.Name),
 			zap.String("guild", guildID),
 		)
 	}
+
+	var cleanupErrors []error
+	if guildID != "" {
+		if err := h.UnregisterCommand(session, ""); err != nil {
+			cleanupErrors = append(
+				cleanupErrors,
+				fmt.Errorf(
+					"failed to remove old global command: %w",
+					err,
+				),
+			)
+		}
+	}
+
+	session.State.RLock()
+	guildIDs := make([]string, 0, len(session.State.Guilds))
+	for _, guild := range session.State.Guilds {
+		if guild == nil || guild.ID == "" {
+			continue
+		}
+
+		guildIDs = append(guildIDs, guild.ID)
+	}
+
+	session.State.RUnlock()
+	for _, oldGuildID := range guildIDs {
+		if oldGuildID == guildID {
+			continue
+		}
+
+		if err := h.UnregisterCommand(
+			session,
+			oldGuildID,
+		); err != nil {
+			cleanupErrors = append(
+				cleanupErrors,
+				fmt.Errorf(
+					"failed to remove old command from guild %s: %w",
+					oldGuildID,
+					err,
+				),
+			)
+		}
+	}
+
+	if err := errors.Join(cleanupErrors...); err != nil {
+		h.log.Error(
+			"Failed to clean up old Discord commands",
+			zap.Error(err),
+		)
+		return err
+	}
+
+	h.log.Info(
+		"Discord commands synchronized successfully",
+		zap.String("guild_id", guildID),
+		zap.Bool("global_commands", guildID == ""),
+	)
 
 	return nil
 }
@@ -72,22 +145,45 @@ func (h *handler) UnregisterCommand(
 	session *discordgo.Session,
 	guildID string,
 ) error {
-	h.log.Info("UnregisterCommand")
-	existingCommands, err := session.ApplicationCommands(session.State.User.ID, guildID)
+	appID := session.State.User.ID
+	existingCommands, err := session.ApplicationCommands(
+		appID,
+		guildID,
+	)
 	if err != nil {
-		h.log.Error(err.Error())
+		h.log.Error(
+			"Failed to get existing commands",
+			zap.String("guild_id", guildID),
+			zap.Error(err),
+		)
 		return err
 	}
 
 	for _, command := range existingCommands {
-		err := session.ApplicationCommandDelete(session.State.User.ID, guildID, command.ID)
-		if err != nil {
-			h.log.Error(err.Error())
+		if command.Name != "anon" ||
+			command.Type != discordgo.ChatApplicationCommand {
+			continue
+		}
+
+		if err := session.ApplicationCommandDelete(
+			appID,
+			guildID,
+			command.ID,
+		); err != nil {
+			h.log.Error(
+				"Failed to unregister command",
+				zap.String("command", command.Name),
+				zap.String("guild_id", guildID),
+				zap.Error(err),
+			)
 			return err
 		}
+
 		h.log.Info(
-			"Unregistered Command",
-			zap.String("command", command.Name), zap.String("guild", guildID))
+			"Unregistered old command",
+			zap.String("command", command.Name),
+			zap.String("guild_id", guildID),
+		)
 	}
 
 	return nil
