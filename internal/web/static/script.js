@@ -3,6 +3,9 @@ const tokenInput = document.getElementById("token");
 const guildInput = document.getElementById("guild");
 const globalInput = document.getElementById("global");
 
+const channelEnabledInput = document.getElementById("channel-enabled");
+const channelInput = document.getElementById("channel-id");
+
 const toggleToken = document.getElementById("toggle-token");
 const submitButton = document.getElementById("submit-button");
 const clearButton = document.getElementById("clear-button");
@@ -17,6 +20,11 @@ function updateGuildInput() {
     if (globalInput.checked) {
         guildInput.value = "";
     }
+}
+
+function updateChannelInput() {
+    channelInput.disabled = !channelEnabledInput.checked;
+    channelInput.required = channelEnabledInput.checked;
 }
 
 function showStatus(message, type) {
@@ -55,8 +63,14 @@ async function loadSettings() {
         guildInput.value = settings.guild_id || "";
         globalInput.checked = !settings.guild_id;
 
+        channelEnabledInput.checked = Boolean(
+            settings.channel_enabled
+        );
+        channelInput.value = settings.channel_id || "";
+
         updateTokenPlaceholder();
         updateGuildInput();
+        updateChannelInput();
     } catch (error) {
         showStatus(error.message, "error");
     }
@@ -75,8 +89,17 @@ toggleToken.addEventListener("click", () => {
 
 globalInput.addEventListener("change", updateGuildInput);
 
+channelEnabledInput.addEventListener(
+    "change",
+    updateChannelInput
+);
+
 guildInput.addEventListener("input", () => {
     guildInput.value = guildInput.value.replace(/\D/g, "");
+});
+
+channelInput.addEventListener("input", () => {
+    channelInput.value = channelInput.value.replace(/\D/g, "");
 });
 
 form.addEventListener("submit", async (event) => {
@@ -87,6 +110,9 @@ form.addEventListener("submit", async (event) => {
         ? ""
         : guildInput.value.trim();
 
+    const channelEnabled = channelEnabledInput.checked;
+    const channelID = channelInput.value.trim();
+
     if (!token && !hasSavedToken) {
         showStatus("Please enter your Discord bot token.", "error");
         return;
@@ -94,6 +120,19 @@ form.addEventListener("submit", async (event) => {
 
     if (!globalInput.checked && !/^\d{17,20}$/.test(guildID)) {
         showStatus("Please enter a valid Discord Guild ID.", "error");
+        return;
+    }
+
+    if (channelEnabled && !channelID) {
+        showStatus(
+            "Please enter a Channel ID to enable binding.",
+            "error"
+        );
+        return;
+    }
+
+    if (channelID && !/^\d{17,20}$/.test(channelID)) {
+        showStatus("Please enter a valid Discord Channel ID.", "error");
         return;
     }
 
@@ -109,7 +148,9 @@ form.addEventListener("submit", async (event) => {
             },
             body: JSON.stringify({
                 token: token,
-                guild_id: guildID
+                guild_id: guildID,
+                channel_enabled: channelEnabled,
+                channel_id: channelID
             })
         });
 
@@ -174,8 +215,12 @@ clearButton.addEventListener("click", async () => {
         guildInput.value = "";
         globalInput.checked = true;
 
+        channelEnabledInput.checked = false;
+        channelInput.value = "";
+
         updateTokenPlaceholder();
         updateGuildInput();
+        updateChannelInput();
 
         showStatus(
             "Configuration cleared successfully!",
@@ -190,4 +235,5 @@ clearButton.addEventListener("click", async () => {
 });
 
 updateGuildInput();
+updateChannelInput();
 loadSettings();

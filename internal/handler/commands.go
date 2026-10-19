@@ -17,9 +17,9 @@ var (
 				},
 				{
 					Name:        "channel",
-					Description: "Channel to send the Image, GIF, video or audio to send anonymously.",
+					Description: "Destination channel (optional if bound).",
 					Type:        discordgo.ApplicationCommandOptionChannel,
-					Required:    true,
+					Required:    false,
 					ChannelTypes: []discordgo.ChannelType{
 						discordgo.ChannelTypeGuildText,
 					},

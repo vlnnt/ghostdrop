@@ -15,8 +15,10 @@ import (
 )
 
 type SettingsRequest struct {
-	Token   string `json:"token"`
-	GuildID string `json:"guild_id"`
+	Token          string `json:"token"`
+	GuildID        string `json:"guild_id"`
+	ChannelEnabled bool   `json:"channel_enabled"`
+	ChannelID      string `json:"channel_id"`
 }
 
 type SettingsResponse struct {
@@ -25,11 +27,13 @@ type SettingsResponse struct {
 }
 
 type CurrentSettingsResponse struct {
-	HasToken bool   `json:"has_token"`
-	GuildID  string `json:"guild_id"`
+	HasToken       bool   `json:"has_token"`
+	GuildID        string `json:"guild_id"`
+	ChannelEnabled bool   `json:"channel_enabled"`
+	ChannelID      string `json:"channel_id"`
 }
 
-var guildIDPattern = regexp.MustCompile(`^[0-9]{17,20}$`)
+var discordIDPattern = regexp.MustCompile(`^[0-9]{17,20}$`)
 
 func (h *Handler) createSettings(
 	c echo.Context,
@@ -44,7 +48,7 @@ func (h *Handler) createSettings(
 	if c.Request().Header.Get(echo.HeaderContentType) !=
 		echo.MIMEApplicationJSON {
 		return c.JSON(http.StatusUnsupportedMediaType, SettingsResponse{
-			Error: "content type must be application/json",
+			Error: "Content type must be application/json.",
 		})
 	}
 
@@ -56,12 +60,13 @@ func (h *Handler) createSettings(
 		)
 
 		return c.JSON(http.StatusBadRequest, SettingsResponse{
-			Error: "invalid settings request",
+			Error: "Invalid settings request.",
 		})
 	}
 
 	request.Token = strings.TrimSpace(request.Token)
 	request.GuildID = strings.TrimSpace(request.GuildID)
+	request.ChannelID = strings.TrimSpace(request.ChannelID)
 
 	if request.Token == "" {
 		cfg, err := settings.LoadConfig(h.configPath)
@@ -72,7 +77,7 @@ func (h *Handler) createSettings(
 			)
 
 			return c.JSON(http.StatusBadRequest, SettingsResponse{
-				Error: "discord token is required",
+				Error: "Discord token is required.",
 			})
 		}
 
@@ -80,26 +85,46 @@ func (h *Handler) createSettings(
 	}
 
 	if request.GuildID != "" &&
-		!guildIDPattern.MatchString(request.GuildID) {
+		!discordIDPattern.MatchString(request.GuildID) {
 		h.log.Warn("Invalid Discord guild ID")
 
 		return c.JSON(http.StatusBadRequest, SettingsResponse{
-			Error: "invalid Discord guild ID",
+			Error: "Invalid Discord Guild ID.",
+		})
+	}
+
+	if request.ChannelEnabled && request.ChannelID == "" {
+		h.log.Warn("Channel binding enabled without channel ID")
+		return c.JSON(http.StatusBadRequest, SettingsResponse{
+			Error: "Channel ID is required when binding is enabled.",
+		})
+	}
+
+	if request.ChannelID != "" &&
+		!discordIDPattern.MatchString(request.ChannelID) {
+		h.log.Warn("Invalid Discord channel ID")
+		return c.JSON(http.StatusBadRequest, SettingsResponse{
+			Error: "Invalid Discord Channel ID.",
 		})
 	}
 
 	if h.saveSettings == nil {
 		err := fmt.Errorf("settings storage is not configured")
 		h.log.Error("Failed to save settings", zap.Error(err))
-
 		return c.JSON(http.StatusInternalServerError, SettingsResponse{
-			Error: "settings storage is unavailable",
+			Error: "Settings storage is unavailable.",
 		})
+	}
+
+	channel := settings.ChannelSettings{
+		Enabled: request.ChannelEnabled,
+		Channel: request.ChannelID,
 	}
 
 	if err := h.saveSettings(
 		request.Token,
 		request.GuildID,
+		channel,
 	); err != nil {
 		h.log.Error(
 			"Failed to save GhostDrop settings",
@@ -107,18 +132,19 @@ func (h *Handler) createSettings(
 		)
 
 		return c.JSON(http.StatusInternalServerError, SettingsResponse{
-			Error: "failed to save settings",
+			Error: "Failed to save settings.",
 		})
 	}
 
 	h.log.Info(
 		"GhostDrop settings saved successfully",
 		zap.Bool("global_commands", request.GuildID == ""),
+		zap.Bool("channel_binding", request.ChannelEnabled),
 		zap.Duration("duration", time.Since(start)),
 	)
 
 	return c.JSON(http.StatusOK, SettingsResponse{
-		Message: "settings saved successfully",
+		Message: "Settings saved successfully.",
 	})
 }
 
@@ -133,13 +159,15 @@ func (h *Handler) getSettings(
 
 		h.log.Error("Failed to load settings", zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, SettingsResponse{
-			Error: "failed to load settings",
+			Error: "Failed to load settings.",
 		})
 	}
 
 	return c.JSON(http.StatusOK, CurrentSettingsResponse{
-		HasToken: cfg.Discord.Token != "",
-		GuildID:  cfg.Discord.GuildID,
+		HasToken:       cfg.Discord.Token != "",
+		GuildID:        cfg.Discord.GuildID,
+		ChannelEnabled: cfg.Channel.Enabled,
+		ChannelID:      cfg.Channel.Channel,
 	})
 }
 
@@ -150,13 +178,13 @@ func (h *Handler) clearSettings(
 		if !errors.Is(err, os.ErrNotExist) {
 			h.log.Error("Failed to clear settings", zap.Error(err))
 			return c.JSON(http.StatusInternalServerError, SettingsResponse{
-				Error: "failed to clear settings",
+				Error: "Failed to clear settings.",
 			})
 		}
 	}
 
 	h.log.Info("GhostDrop configuration cleared!")
 	return c.JSON(http.StatusOK, SettingsResponse{
-		Message: "configuration cleared successfully!",
+		Message: "Configuration cleared successfully!",
 	})
 }

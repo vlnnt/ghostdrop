@@ -13,11 +13,17 @@ import (
 
 type BotSettings struct {
 	Discord DiscordSettings `yaml:"discord"`
+	Channel ChannelSettings `yaml:"channel"`
 }
 
 type DiscordSettings struct {
 	Token   string `yaml:"token"`
 	GuildID string `yaml:"gid"`
+}
+
+type ChannelSettings struct {
+	Enabled bool   `yaml:"enabled"`
+	Channel string `yaml:"channel"`
 }
 
 func ReadEnvironmentVariable(
@@ -62,6 +68,11 @@ func LoadConfig(
 		return nil, errors.New("discord token is empty")
 	}
 
+	if settings.Channel.Enabled &&
+		strings.TrimSpace(settings.Channel.Channel) == "" {
+		return nil, errors.New("channel ID is required when channel binding is enabled")
+	}
+
 	return settings, nil
 }
 
@@ -98,6 +109,11 @@ func SaveConfig(
 
 	if strings.TrimSpace(settings.Discord.Token) == "" {
 		return errors.New("discord token is empty")
+	}
+
+	if settings.Channel.Enabled &&
+		strings.TrimSpace(settings.Channel.Channel) == "" {
+		return errors.New("channel ID is required when channel binding is enabled")
 	}
 
 	configBytes, err := yaml.Marshal(settings)

@@ -38,15 +38,23 @@ func Run() {
 	logger.Info("Initializing web handler...")
 	webHandler := web.NewHandler(
 		logger,
-		func(token, guildID string) error {
+		func(
+			token string,
+			guildID string,
+			channel settings.ChannelSettings,
+		) error {
 			cfg := &settings.BotSettings{
 				Discord: settings.DiscordSettings{
 					Token:   token,
 					GuildID: guildID,
 				},
+				Channel: channel,
 			}
 
-			if err := settings.SaveConfig(cfg, configPath); err != nil {
+			if err := settings.SaveConfig(
+				cfg,
+				configPath,
+			); err != nil {
 				logger.Error(
 					"Failed to save configuration",
 					zap.Error(err),
@@ -55,8 +63,9 @@ func Run() {
 			}
 
 			logger.Info(
-				"Configuration saved successfully",
-				zap.Bool("global_commands", guildID == ""),
+				"GhostDrop configuration saved",
+				zap.Bool("channel_enabled", channel.Enabled),
+				zap.String("channel_id", channel.Channel),
 			)
 
 			select {
@@ -150,7 +159,10 @@ func Run() {
 	}
 
 	logger.Info("Initializing interactions...")
-	interaction := interactions.NewInteractions(logger)
+	interaction := interactions.NewInteractions(
+		logger,
+		cfg.Channel,
+	)
 
 	logger.Info("Initializing Discord handler...")
 	discordHandler := handler.NewHandler(
@@ -169,7 +181,21 @@ func Run() {
 	}
 
 	session.ShouldReconnectOnError = true
+	session.Identify.Intents = discordgo.IntentsGuilds
+	ready := make(chan struct{}, 1)
+
 	session.AddHandler(discordHandler.Handle)
+	session.AddHandlerOnce(func(
+		session *discordgo.Session,
+		event *discordgo.Ready,
+	) {
+		logger.Info(
+			"Discord session ready",
+			zap.Int("guild_count", len(event.Guilds)),
+		)
+
+		ready <- struct{}{}
+	})
 
 	defer func() {
 		logger.Info("Closing Discord session...")
@@ -215,13 +241,32 @@ func Run() {
 		return
 	}
 
+	logger.Info("Waiting for Discord ready event...")
+	select {
+	case <-ready:
+		logger.Info("Discord session initialized")
+
+	case <-ctx.Done():
+		logger.Info(
+			"Shutdown requested before Discord ready",
+		)
+		return
+
+	case err := <-serverErrors:
+		logger.Error(
+			"HTTP server stopped before Discord ready",
+			zap.Error(err),
+		)
+		return
+	}
+
 	logger.Info("Registering Discord commands...")
 	if err := discordHandler.RegisterCommand(
 		session,
 		cfg.Discord.GuildID,
 	); err != nil {
 		logger.Error(
-			"Failed to register Discord commands",
+			"Failed to synchronize Discord commands",
 			zap.Error(err),
 		)
 		return
